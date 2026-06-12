@@ -1,0 +1,22 @@
+# Local Terraform
+**/.terraform/*
+
+# State (use remote backend in real deployments)
+*.tfstate
+*.tfstate.*
+
+# Secrets and environment-specific values
+*.tfvars
+!*.tfvars.example
+
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+.DS_Store
+.idea
