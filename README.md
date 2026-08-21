@@ -5,7 +5,8 @@ Modular Terraform layout to deploy Amazon EKS with separate **dev** and **prod**
 ## Layout
 
 ```
-modules/eks-platform/     # Reusable VPC + EKS module
+modules/vpc/              # Reusable networking module
+modules/eks/              # Reusable EKS cluster and node group module
 environments/dev/         # Smaller, cheaper dev cluster
 environments/prod/        # HA prod cluster (private API, deletion protection)
 ```
@@ -13,8 +14,13 @@ environments/prod/        # HA prod cluster (private API, deletion protection)
 ```
 terrafrom-eks-learn/
 ├── modules/
-│   └── eks-platform/        ← reusable module
-│       ├── main.tf           (VPC + EKS resources)
+│   ├── vpc/                 ← reusable VPC module
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── versions.tf
+│   └── eks/                 ← reusable EKS module
+│       ├── main.tf
 │       ├── variables.tf
 │       ├── outputs.tf
 │       └── versions.tf
@@ -30,6 +36,11 @@ terrafrom-eks-learn/
         ├── outputs.tf
         └── versions.tf
 ```
+
+Each environment composes the local modules directly:
+
+1. `module "vpc"` creates the VPC, public subnets, private subnets, DNS, Internet Gateway, and NAT gateways.
+2. `module "eks"` creates the EKS cluster, managed node groups, core addons, IAM roles, and cluster access resources through the upstream EKS module.
 
 ## Infrastructure
 

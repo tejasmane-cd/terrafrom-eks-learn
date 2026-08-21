@@ -1,13 +1,35 @@
-module "eks_platform" {
-  source = "../../modules/eks-platform"
+moved {
+  from = module.eks_platform.module.vpc
+  to   = module.vpc.module.vpc
+}
+
+moved {
+  from = module.eks_platform.module.eks
+  to   = module.eks.module.eks
+}
+
+module "vpc" {
+  source = "../../modules/vpc"
 
   environment  = var.environment
   cluster_name = var.cluster_name
-  aws_region   = var.aws_region
   vpc_cidr     = var.vpc_cidr
 
   az_count           = 2
   single_nat_gateway = true
+
+  tags = var.tags
+}
+
+module "eks" {
+  source = "../../modules/eks"
+
+  environment  = var.environment
+  cluster_name = var.cluster_name
+  aws_region   = var.aws_region
+
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
 
   kubernetes_version = var.kubernetes_version
 

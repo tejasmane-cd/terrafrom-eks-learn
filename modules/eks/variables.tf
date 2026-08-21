@@ -13,23 +13,14 @@ variable "aws_region" {
   type        = string
 }
 
-variable "vpc_cidr" {
-  description = "VPC CIDR block"
+variable "vpc_id" {
+  description = "VPC ID where the EKS cluster is deployed"
   type        = string
 }
 
-variable "az_count" {
-  description = "Number of availability zones to use"
-  type        = number
-  validation {
-    condition     = var.az_count >= 1 && var.az_count <= 6
-    error_message = "az_count must be between 1 and 6. Ensure the target region has at least this many AZs."
-  }
-}
-
-variable "single_nat_gateway" {
-  description = "Use a single NAT gateway (cheaper for dev)"
-  type        = bool
+variable "private_subnet_ids" {
+  description = "Private subnet IDs for EKS nodes"
+  type        = list(string)
 }
 
 variable "kubernetes_version" {
