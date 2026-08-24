@@ -1,145 +1,146 @@
-# EKS Terraform (dev / prod)
+# Terraform EKS Learning Project
 
-Modular Terraform layout to deploy Amazon EKS with separate **dev** and **prod** environments.
+This repository is a learning-friendly Terraform project for creating an Amazon EKS cluster with reusable modules.
 
-## Layout
+It has two environments:
 
-```
-modules/vpc/              # Reusable networking module
-modules/eks/              # Reusable EKS cluster and node group module
-environments/dev/         # Smaller, cheaper dev cluster
-environments/prod/        # HA prod cluster (private API, deletion protection)
-```
+- `dev`: cheaper setup for practice
+- `prod`: more production-like setup with high availability choices
 
-```
+Important: do not run `terraform plan` from the repository root. The root folder has no `.tf` files. Run Terraform from `environments/dev` or `environments/prod`.
+
+## Project Structure
+
+```text
 terrafrom-eks-learn/
 ├── modules/
-│   ├── vpc/                 ← reusable VPC module
+│   ├── vpc/
 │   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   ├── outputs.tf
 │   │   └── versions.tf
-│   └── eks/                 ← reusable EKS module
+│   └── eks/
 │       ├── main.tf
 │       ├── variables.tf
 │       ├── outputs.tf
 │       └── versions.tf
 └── environments/
-    ├── dev/                 ← instantiates the module (dev config)
+    ├── dev/
     │   ├── main.tf
     │   ├── variables.tf
     │   ├── outputs.tf
-    │   └── versions.tf
-    └── prod/                ← instantiates the module (prod config)
+    │   ├── versions.tf
+    │   └── terraform.tfvars.example
+    └── prod/
         ├── main.tf
         ├── variables.tf
         ├── outputs.tf
-        └── versions.tf
+        ├── versions.tf
+        └── terraform.tfvars.example
 ```
 
-Each environment composes the local modules directly:
+## What Each Folder Means
 
-1. `module "vpc"` creates the VPC, public subnets, private subnets, DNS, Internet Gateway, and NAT gateways.
-2. `module "eks"` creates the EKS cluster, managed node groups, core addons, IAM roles, and cluster access resources through the upstream EKS module.
+`modules/vpc` contains reusable networking code.
 
-## Infrastructure
+It creates:
 
-### Dev — `10.10.0.0/16` · 2 AZs · public API endpoint
+- VPC
+- public subnets
+- private subnets
+- Internet Gateway
+- NAT Gateway
+- DNS support
+- Kubernetes subnet tags for load balancers
 
-```
-                              Internet
-                                  │
-                        ┌─────────┴──────────┐
-                        │  Internet Gateway   │
-                        └─────────┬──────────┘
-                                  │
-  ┌───────────── VPC  10.10.0.0/16 ──────────────────────────────────┐
-  │                                                                   │
-  │  PUBLIC SUBNETS                                                   │
-  │  ┌───────────────────────────┐  ┌───────────────────────────┐   │
-  │  │  us-east-1a               │  │  us-east-1b               │   │
-  │  │  10.10.32.0/20            │  │  10.10.48.0/20            │   │
-  │  │  ┌─────────────────────┐  │  │                           │   │
-  │  │  │    NAT Gateway      │  │  │  (no NAT — single-AZ)    │   │
-  │  │  └──────────┬──────────┘  │  │                           │   │
-  │  └─────────────┼─────────────┘  └───────────────────────────┘   │
-  │                │                                                  │
-  │  PRIVATE SUBNETS                                                  │
-  │  ┌─────────────┴─────────────┐  ┌───────────────────────────┐   │
-  │  │  us-east-1a               │  │  us-east-1b               │   │
-  │  │  10.10.0.0/20             │  │  10.10.16.0/20            │   │
-  │  │  ┌──────────────────────┐ │  │  ┌──────────────────────┐ │   │
-  │  │  │  EKS Managed Node    │ │  │  │  (scale-out, max 2)  │ │   │
-  │  │  │  t3.small            │ │  │  └──────────────────────┘ │   │
-  │  │  │  desired 1 / max 2   │ │  │                           │   │
-  │  │  └──────────────────────┘ │  │                           │   │
-  │  └───────────────────────────┘  └───────────────────────────┘   │
-  │                                                                   │
-  │  ┌─────────────────────────────────────────────────────────────┐ │
-  │  │  EKS Control Plane  (Kubernetes 1.31)                       │ │
-  │  │  Public API endpoint                                        │ │
-  │  │  Addons: vpc-cni · kube-proxy · coredns (×1)               │ │
-  │  │          eks-pod-identity-agent                             │ │
-  │  └─────────────────────────────────────────────────────────────┘ │
-  └───────────────────────────────────────────────────────────────────┘
+`modules/eks` contains reusable EKS code.
+
+It creates:
+
+- EKS cluster
+- managed node groups
+- EKS addons
+- cluster IAM resources through the upstream EKS module
+- outputs for kubectl access
+
+`environments/dev` and `environments/prod` are where you actually run Terraform.
+
+Each environment calls the modules like this:
+
+```hcl
+module "vpc" {
+  source = "../../modules/vpc"
+}
+
+module "eks" {
+  source = "../../modules/eks"
+}
 ```
 
-### Prod — `10.20.0.0/16` · 3 AZs · private API endpoint
+This is the main learning idea: modules contain reusable code, and environments pass different values into those modules.
 
-```
-                              Internet
-                                  │
-                        ┌─────────┴──────────┐
-                        │  Internet Gateway   │
-                        └──┬──────┬──────┬───┘
-                           │      │      │
-  ┌────────────── VPC  10.20.0.0/16 ──────────────────────────────────────┐
-  │                                                                        │
-  │  PUBLIC SUBNETS                                                        │
-  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐      │
-  │  │  us-east-1a     │  │  us-east-1b     │  │  us-east-1c     │      │
-  │  │  10.20.48.0/20  │  │  10.20.64.0/20  │  │  10.20.80.0/20  │      │
-  │  │  ┌───────────┐  │  │  ┌───────────┐  │  │  ┌───────────┐  │      │
-  │  │  │    NAT    │  │  │  │    NAT    │  │  │  │    NAT    │  │      │
-  │  │  └─────┬─────┘  │  │  └─────┬─────┘  │  │  └─────┬─────┘  │      │
-  │  └────────┼────────┘  └────────┼────────┘  └────────┼────────┘      │
-  │           │                    │                      │               │
-  │  PRIVATE SUBNETS                                                       │
-  │  ┌────────┴────────┐  ┌────────┴────────┐  ┌────────┴────────┐      │
-  │  │  us-east-1a     │  │  us-east-1b     │  │  us-east-1c     │      │
-  │  │  10.20.0.0/20   │  │  10.20.16.0/20  │  │  10.20.32.0/20  │      │
-  │  │  ┌───────────┐  │  │  ┌───────────┐  │  │  ┌───────────┐  │      │
-  │  │  │ EKS Node  │  │  │  │ EKS Node  │  │  │  │ EKS Node  │  │      │
-  │  │  │ m6i.large │  │  │  │ m6i.large │  │  │  │ m6i.large │  │      │
-  │  │  └───────────┘  │  │  └───────────┘  │  │  └───────────┘  │      │
-  │  │  desired 3 / max 10 (autoscaling across all three AZs)     │      │
-  │  └─────────────────┘  └─────────────────┘  └─────────────────┘      │
-  │                                                                        │
-  │  ┌──────────────────────────────────────────────────────────────┐    │
-  │  │  EKS Control Plane  (Kubernetes 1.31)                        │    │
-  │  │  Private API endpoint — access via VPN / bastion only        │    │
-  │  │  Deletion protection ON                                      │    │
-  │  │  Addons: vpc-cni · kube-proxy · coredns (×2)                │    │
-  │  │          eks-pod-identity-agent                              │    │
-  │  └──────────────────────────────────────────────────────────────┘    │
-  └────────────────────────────────────────────────────────────────────────┘
+## Terraform Command Location
+
+Wrong:
+
+```bash
+terraform plan
 ```
 
-> **Prod access:** The Kubernetes API has no public endpoint. All `kubectl`
-> and `terraform` commands must run from inside the VPC (VPN, bastion host,
-> or an AWS CloudShell session scoped to the VPC).
+from:
 
-## Prerequisites
+```bash
+~/terrafrom-eks-learn
+```
 
-- Terraform >= 1.5
-- AWS CLI configured (`aws configure` or env vars)
-- IAM permissions for VPC, EKS, EC2, IAM, KMS
+This gives:
 
-## Deploy dev
+```text
+Error: No configuration files
+```
+
+Correct:
 
 ```bash
 cd environments/dev
-cp terraform.tfvars.example terraform.tfvars   # edit as needed
+terraform init
+terraform plan
+```
+
+or:
+
+```bash
+cd environments/prod
+terraform init
+terraform plan
+```
+
+You can also run from the root using `-chdir`:
+
+```bash
+terraform -chdir=environments/dev init
+terraform -chdir=environments/dev plan
+```
+
+## Dev Environment
+
+Dev is smaller and cheaper.
+
+| Setting | Value |
+| --- | --- |
+| VPC CIDR | `10.10.0.0/16` |
+| Availability Zones | 2 |
+| NAT Gateway | Single NAT Gateway |
+| EKS API endpoint | Public |
+| Deletion protection | Off |
+| Node type | `t3.small` |
+| Desired nodes | 1 |
+
+Run dev:
+
+```bash
+cd environments/dev
+cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform plan
 terraform apply
@@ -152,7 +153,21 @@ $(terraform output -raw configure_kubectl)
 kubectl get nodes
 ```
 
-## Deploy prod
+## Prod Environment
+
+Prod is more production-like.
+
+| Setting | Value |
+| --- | --- |
+| VPC CIDR | `10.20.0.0/16` |
+| Availability Zones | 3 |
+| NAT Gateway | One NAT Gateway per AZ |
+| EKS API endpoint | Private |
+| Deletion protection | On |
+| Node type | `m6i.large` |
+| Desired nodes | 3 |
+
+Run prod:
 
 ```bash
 cd environments/prod
@@ -162,22 +177,90 @@ terraform plan
 terraform apply
 ```
 
-Prod uses a **private** Kubernetes API endpoint. Run `terraform apply` and `kubectl` from a network that can reach the VPC (VPN, bastion, or CI runner in the account).
+Prod uses a private Kubernetes API endpoint. That means `kubectl` and future Terraform runs must be done from a network that can reach the VPC, such as VPN, bastion host, or a CI runner inside the AWS network.
 
-## Environment differences
+## How The Modules Connect
 
-| Setting | dev | prod |
-|--------|-----|------|
-| AZs | 2 | 3 |
-| NAT | Single | Per-AZ |
-| API endpoint | Public | Private |
-| Deletion protection | Off | On |
-| Node type | t3.small | m6i.large |
-| Nodes (desired) | 1 | 3 |
+The VPC module creates networking first:
 
-## Remote state (recommended)
+```hcl
+module "vpc" {
+  source = "../../modules/vpc"
+}
+```
 
-Add a `backend "s3"` block in each environment’s `versions.tf` before team use. Example:
+The EKS module then uses values from the VPC module:
+
+```hcl
+module "eks" {
+  source = "../../modules/eks"
+
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
+}
+```
+
+This means EKS nodes are launched into the private subnets created by the VPC module.
+
+## Important Terraform Files
+
+`main.tf` defines resources and module calls.
+
+`variables.tf` defines inputs.
+
+`outputs.tf` prints useful values after apply.
+
+`versions.tf` defines Terraform and provider requirements.
+
+`terraform.tfvars` contains environment-specific values. This file is usually not committed because it may contain local or sensitive values.
+
+`terraform.tfvars.example` is a safe example file you can copy.
+
+## Common Commands
+
+Format Terraform files:
+
+```bash
+terraform fmt -recursive
+```
+
+Validate dev:
+
+```bash
+terraform -chdir=environments/dev validate
+```
+
+Validate prod:
+
+```bash
+terraform -chdir=environments/prod validate
+```
+
+Plan dev:
+
+```bash
+terraform -chdir=environments/dev plan
+```
+
+Apply dev:
+
+```bash
+terraform -chdir=environments/dev apply
+```
+
+Destroy dev:
+
+```bash
+terraform -chdir=environments/dev destroy
+```
+
+## Remote State
+
+For learning, local state is okay.
+
+For team or real use, configure remote state with S3 and DynamoDB locking in each environment's `versions.tf`.
+
+Example:
 
 ```hcl
 terraform {
@@ -191,9 +274,31 @@ terraform {
 }
 ```
 
+## Learning Flow
+
+Recommended order:
+
+1. Read `environments/dev/main.tf`.
+2. See how it calls `modules/vpc`.
+3. Open `modules/vpc/main.tf` and understand the network.
+4. Go back to `environments/dev/main.tf`.
+5. See how it passes VPC outputs into `modules/eks`.
+6. Open `modules/eks/main.tf` and understand the cluster.
+7. Run `terraform plan` from `environments/dev`.
+8. Read the plan before applying.
+
 ## Cleanup
 
+To avoid AWS costs, destroy resources when you finish learning:
+
 ```bash
-cd environments/dev   # or prod
+cd environments/dev
+terraform destroy
+```
+
+For prod:
+
+```bash
+cd environments/prod
 terraform destroy
 ```
