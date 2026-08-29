@@ -43,7 +43,8 @@ module "eks" {
   endpoint_public_access_cidrs = var.endpoint_public_access_cidrs
   endpoint_private_access      = true
 
-  enable_cluster_creator_admin_permissions = true
+  enable_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
+  access_entries                           = var.access_entries
   deletion_protection                      = var.deletion_protection
 
   addons = {

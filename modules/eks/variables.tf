@@ -72,6 +72,31 @@ variable "coredns_replica_count" {
   default     = 1
 }
 
+variable "enable_cluster_creator_admin_permissions" {
+  description = "Indicates whether to create the EKS bootstrap cluster creator admin access entry from the Terraform caller identity"
+  type        = bool
+  default     = false
+}
+
+variable "access_entries" {
+  description = "Map of explicit EKS access entries to add to the cluster"
+  type = map(object({
+    kubernetes_groups = optional(list(string))
+    principal_arn     = string
+    type              = optional(string, "STANDARD")
+    user_name         = optional(string)
+    tags              = optional(map(string), {})
+    policy_associations = optional(map(object({
+      policy_arn = string
+      access_scope = object({
+        namespaces = optional(list(string))
+        type       = string
+      })
+    })), {})
+  }))
+  default = {}
+}
+
 variable "tags" {
   description = "Additional tags applied to all resources"
   type        = map(string)

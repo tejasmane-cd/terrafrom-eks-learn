@@ -8,6 +8,10 @@ moved {
   to   = module.eks.module.eks
 }
 
+data "aws_iam_role" "github_actions_terraform_dev" {
+  name = "github-actions-terraform-dev"
+}
+
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -36,6 +40,21 @@ module "eks" {
   endpoint_public_access       = true
   endpoint_public_access_cidrs = var.endpoint_public_access_cidrs
   deletion_protection          = false
+
+  enable_cluster_creator_admin_permissions = false
+  access_entries = {
+    cluster_creator = {
+      principal_arn = data.aws_iam_role.github_actions_terraform_dev.arn
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
 
   eks_managed_node_groups = {
     default = {
