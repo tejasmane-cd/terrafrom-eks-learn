@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [dev, prod]
+        environment: [dev]
     concurrency:
       group: terraform-${{ matrix.environment }}
       cancel-in-progress: false
@@ -46,6 +46,8 @@ jobs:
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+          role-session-name: terraform-plan-${{ matrix.environment }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -78,7 +80,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [dev, prod]
+        environment: [dev]
     concurrency:
       group: terraform-${{ matrix.environment }}
       cancel-in-progress: false
@@ -100,6 +102,8 @@ jobs:
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+          role-session-name: terraform-apply-${{ matrix.environment }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
