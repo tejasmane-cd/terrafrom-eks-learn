@@ -1,20 +1,16 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.10.0, < 1.17.0"
 
-  # Uncomment to store dev state remotely (recommended for team use).
-  #
-  # backend "s3" {
-  #   bucket         = "your-tf-state-bucket"
-  #   key            = "eks-learn/dev/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   dynamodb_table = "terraform-state-lock"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    key          = "terrafrom-eks-learn/dev/terraform.tfstate"
+    encrypt      = true
+    use_lockfile = true
+  }
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.95"
+      version = "~> 6.61.0"
     }
   }
 }

@@ -30,7 +30,7 @@ locals {
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 21.0"
+  version = "~> 21.25.0"
 
   name               = var.cluster_name
   kubernetes_version = var.kubernetes_version
@@ -50,19 +50,19 @@ module "eks" {
     # Must run before nodes; otherwise nodes stay NotReady (CNI not initialized)
     # and Terraform waits on the node group indefinitely.
     vpc-cni = {
-      most_recent    = true
+      addon_version  = var.addon_versions["vpc-cni"]
       before_compute = true
     }
     kube-proxy = {
-      most_recent    = true
+      addon_version  = var.addon_versions["kube-proxy"]
       before_compute = true
     }
     eks-pod-identity-agent = {
-      most_recent    = true
+      addon_version  = var.addon_versions["eks-pod-identity-agent"]
       before_compute = true
     }
     coredns = {
-      most_recent = true
+      addon_version = var.addon_versions["coredns"]
       configuration_values = jsonencode({
         replicaCount = var.coredns_replica_count
       })

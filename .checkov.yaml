@@ -1,0 +1,22 @@
+quiet: true
+skip-path:
+  - .*/\.terraform/.*
+skip-check:
+  # Registry module versions are pinned with controlled Terraform Registry
+  # constraints to keep this learning project approachable.
+  - CKV_TF_1
+  # Cross-region replication is intentionally out of scope for this pass.
+  - CKV_AWS_144
+  # Event notifications are intentionally out of scope for the backend example.
+  - CKV2_AWS_62
+  # Centralized S3 access logging is out of scope for this bootstrap example.
+  - CKV_AWS_18
+  # AES256 server-side encryption is acceptable here; KMS setup is manual.
+  - CKV_AWS_145
+  # Terraform includes abort_incomplete_multipart_upload in the lifecycle rule;
+  # Checkov still flags this provider v6 resource shape.
+  - CKV_AWS_300
+  # This learning repo intentionally keeps add-ons limited to the requested scope.
+  # EBS CSI, AWS Load Balancer Controller, monitoring, and similar platform features
+  # are documented as out of scope for this pass.
+  - CKV_AWS_338

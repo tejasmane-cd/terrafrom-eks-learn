@@ -1,0 +1,7 @@
+aws_region        = "us-east-1"
+state_bucket_name = "replace-with-your-globally-unique-state-bucket"
+
+allowed_principal_arns = [
+  "arn:aws:iam::123456789012:role/github-actions-terraform-dev",
+  "arn:aws:iam::123456789012:role/github-actions-terraform-prod",
+]

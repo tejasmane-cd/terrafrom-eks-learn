@@ -1,128 +1,109 @@
 # Terraform EKS Learning Project
 
-This repository is a learning-friendly Terraform project for creating an Amazon EKS cluster with reusable modules.
+This repository is a learning-friendly Terraform project for creating Amazon EKS clusters with reusable modules and separate `dev` and `prod` environments.
 
-It has two environments:
+Run Terraform from an environment folder, not from the repository root:
 
-- `dev`: cheaper setup for practice
-- `prod`: more production-like setup with high availability choices
-
-Important: do not run `terraform plan` from the repository root. The root folder has no `.tf` files. Run Terraform from `environments/dev` or `environments/prod`.
+```bash
+terraform -chdir=environments/dev plan
+terraform -chdir=environments/prod plan
+```
 
 ## Project Structure
 
 ```text
 terrafrom-eks-learn/
+├── bootstrap/
+│   └── s3-backend/          # one-time example for the remote state bucket
 ├── modules/
 │   ├── vpc/
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   ├── outputs.tf
-│   │   └── versions.tf
 │   └── eks/
-│       ├── main.tf
-│       ├── variables.tf
-│       ├── outputs.tf
-│       └── versions.tf
 └── environments/
     ├── dev/
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   ├── outputs.tf
-    │   ├── versions.tf
-    │   └── terraform.tfvars.example
     └── prod/
-        ├── main.tf
-        ├── variables.tf
-        ├── outputs.tf
-        ├── versions.tf
-        └── terraform.tfvars.example
 ```
 
-## What Each Folder Means
+`modules/vpc` creates the VPC, public subnets, private subnets, Internet Gateway, NAT Gateway, DNS support, and Kubernetes subnet tags.
 
-`modules/vpc` contains reusable networking code.
+`modules/eks` creates the EKS cluster, managed node groups, EKS managed add-ons, and kubectl helper outputs.
 
-It creates:
+`environments/dev` and `environments/prod` call those modules with different settings.
 
-- VPC
-- public subnets
-- private subnets
-- Internet Gateway
-- NAT Gateway
-- DNS support
-- Kubernetes subnet tags for load balancers
+## Versions
 
-`modules/eks` contains reusable EKS code.
+This project pins versions tightly enough to be reproducible while allowing compatible patch updates:
 
-It creates:
+| Component | Constraint or value |
+| --- | --- |
+| Terraform CLI | `>= 1.10.0, < 1.17.0` |
+| AWS provider | `~> 6.61.0` |
+| VPC module | `terraform-aws-modules/vpc/aws` `~> 5.21.0` |
+| EKS module | `terraform-aws-modules/eks/aws` `~> 21.25.0` |
+| Kubernetes | `1.36` |
 
-- EKS cluster
-- managed node groups
-- EKS addons
-- cluster IAM resources through the upstream EKS module
-- outputs for kubectl access
+Keep both committed `.terraform.lock.hcl` files in sync by running `terraform init` in both environments after intentional constraint changes. Do not use `terraform init -upgrade` unless you are deliberately reviewing a dependency update.
 
-`environments/dev` and `environments/prod` are where you actually run Terraform.
+GitHub Actions pins Terraform CLI `1.16.0` inside the supported range.
 
-Each environment calls the modules like this:
+## Remote State
 
-```hcl
-module "vpc" {
-  source = "../../modules/vpc"
-}
+Both environments use the S3 backend with native S3 lockfiles. DynamoDB locking is not used.
 
-module "eks" {
-  source = "../../modules/eks"
-}
-```
+| Environment | State key |
+| --- | --- |
+| `dev` | `terrafrom-eks-learn/dev/terraform.tfstate` |
+| `prod` | `terrafrom-eks-learn/prod/terraform.tfstate` |
 
-This is the main learning idea: modules contain reusable code, and environments pass different values into those modules.
-
-## Terraform Command Location
-
-Wrong:
+The backend is intentionally partial: the repository owns the state key, encryption flag, and `use_lockfile = true`; you supply the real bucket and backend region during `terraform init`.
 
 ```bash
-terraform plan
+terraform -chdir=environments/dev init \
+  -backend-config="bucket=<your-state-bucket>" \
+  -backend-config="region=<state-bucket-region>"
+
+terraform -chdir=environments/prod init \
+  -backend-config="bucket=<your-state-bucket>" \
+  -backend-config="region=<state-bucket-region>"
 ```
 
-from:
+To migrate existing local state after the bucket exists:
 
 ```bash
-~/terrafrom-eks-learn
+terraform -chdir=environments/dev init -migrate-state \
+  -backend-config="bucket=<your-state-bucket>" \
+  -backend-config="region=<state-bucket-region>"
+
+terraform -chdir=environments/prod init -migrate-state \
+  -backend-config="bucket=<your-state-bucket>" \
+  -backend-config="region=<state-bucket-region>"
 ```
 
-This gives:
+Terraform state can contain sensitive values. Do not commit `.tfstate`, `.tfstate.backup`, or real `.tfvars` files.
 
-```text
-Error: No configuration files
-```
+## Backend Bootstrap
 
-Correct:
+`bootstrap/s3-backend` is a one-time example for creating the S3 state bucket. It intentionally has no remote backend because it creates the backend itself.
 
 ```bash
-cd environments/dev
+cd bootstrap/s3-backend
+cp terraform.tfvars.example terraform.tfvars
+# edit terraform.tfvars with your real bucket name and allowed IAM principals
 terraform init
 terraform plan
+terraform apply
 ```
 
-or:
+The state bucket must have:
 
-```bash
-cd environments/prod
-terraform init
-terraform plan
-```
+- server-side encryption enabled
+- versioning enabled
+- all S3 public access blocked
+- restricted IAM access to only trusted human/admin roles and GitHub Actions OIDC roles
+- lockfile access for `*.tflock` objects when `use_lockfile = true`
 
-You can also run from the root using `-chdir`:
+The bootstrap example enables encryption, versioning, public-access blocking, noncurrent-version lifecycle cleanup, TLS-only bucket policy enforcement, and optional bucket-policy access for the dev/prod state objects and lock files.
 
-```bash
-terraform -chdir=environments/dev init
-terraform -chdir=environments/dev plan
-```
-
-## Dev Environment
+## Environments
 
 Dev is smaller and cheaper.
 
@@ -131,29 +112,10 @@ Dev is smaller and cheaper.
 | VPC CIDR | `10.10.0.0/16` |
 | Availability Zones | 2 |
 | NAT Gateway | Single NAT Gateway |
-| EKS API endpoint | Public |
+| EKS API endpoint | Public, restricted by `endpoint_public_access_cidrs` |
 | Deletion protection | Off |
 | Node type | `t3.small` |
 | Desired nodes | 1 |
-
-Run dev:
-
-```bash
-cd environments/dev
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform plan
-terraform apply
-```
-
-After apply:
-
-```bash
-$(terraform output -raw configure_kubectl)
-kubectl get nodes
-```
-
-## Prod Environment
 
 Prod is more production-like.
 
@@ -164,141 +126,153 @@ Prod is more production-like.
 | NAT Gateway | One NAT Gateway per AZ |
 | EKS API endpoint | Private |
 | Deletion protection | On |
-| Node type | `m6i.large` |
+| Node type | `t3.small` |
 | Desired nodes | 3 |
 
-Run prod:
+Prod uses a private Kubernetes API endpoint. `kubectl` and future Terraform operations that talk to the cluster must run from a network path that can reach the VPC, such as VPN, a bastion path, or a private runner.
+
+## Local Workflow
 
 ```bash
-cd environments/prod
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform plan
-terraform apply
-```
-
-Prod uses a private Kubernetes API endpoint. That means `kubectl` and future Terraform runs must be done from a network that can reach the VPC, such as VPN, bastion host, or a CI runner inside the AWS network.
-
-## How The Modules Connect
-
-The VPC module creates networking first:
-
-```hcl
-module "vpc" {
-  source = "../../modules/vpc"
-}
-```
-
-The EKS module then uses values from the VPC module:
-
-```hcl
-module "eks" {
-  source = "../../modules/eks"
-
-  vpc_id             = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
-}
-```
-
-This means EKS nodes are launched into the private subnets created by the VPC module.
-
-## Important Terraform Files
-
-`main.tf` defines resources and module calls.
-
-`variables.tf` defines inputs.
-
-`outputs.tf` prints useful values after apply.
-
-`versions.tf` defines Terraform and provider requirements.
-
-`terraform.tfvars` contains environment-specific values. This file is usually not committed because it may contain local or sensitive values.
-
-`terraform.tfvars.example` is a safe example file you can copy.
-
-## Common Commands
-
-Format Terraform files:
-
-```bash
-terraform fmt -recursive
-```
-
-Validate dev:
-
-```bash
-terraform -chdir=environments/dev validate
-```
-
-Validate prod:
-
-```bash
-terraform -chdir=environments/prod validate
-```
-
-Plan dev:
-
-```bash
+cp environments/dev/terraform.tfvars.example environments/dev/terraform.tfvars
+terraform -chdir=environments/dev init \
+  -backend-config="bucket=<your-state-bucket>" \
+  -backend-config="region=<state-bucket-region>"
 terraform -chdir=environments/dev plan
-```
-
-Apply dev:
-
-```bash
 terraform -chdir=environments/dev apply
 ```
 
-Destroy dev:
+After apply:
 
 ```bash
-terraform -chdir=environments/dev destroy
+$(terraform -chdir=environments/dev output -raw configure_kubectl)
+kubectl get nodes
 ```
 
-## Remote State
+Use the same pattern for `environments/prod`, after confirming your runner or workstation can reach the private EKS endpoint.
 
-For learning, local state is okay.
+## CI/CD
 
-For team or real use, configure remote state with S3 and DynamoDB locking in each environment's `versions.tf`.
+The repository includes two GitHub Actions workflows:
 
-Example:
+- `.github/workflows/terraform-pr.yml`: PR checks for `dev` and `prod`.
+- `.github/workflows/terraform-deploy.yml`: protected `main` and manual plan/apply for `dev` and `prod`.
 
-```hcl
-terraform {
-  backend "s3" {
-    bucket         = "my-tf-state"
-    key            = "eks-learn/dev/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-locks"
-    encrypt        = true
-  }
+The PR pipeline runs:
+
+- `terraform fmt -check -recursive`
+- `terraform init`
+- `terraform validate`
+- `tflint`
+- `checkov`
+- `terraform plan`
+
+The deployment pipeline runs plan, waits on the GitHub Environment gate for the target environment, then applies the saved plan. Configure the GitHub `prod` Environment with required reviewers so production requires approval. Concurrency is scoped per environment to prevent overlapping Terraform runs.
+
+## GitHub OIDC
+
+Use GitHub OIDC with short-lived AWS credentials. Do not create long-lived AWS access keys for CI.
+
+Required GitHub variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `TF_STATE_BUCKET` | S3 bucket that stores Terraform state |
+| `TF_STATE_REGION` | AWS region for the state bucket and AWS provider |
+| `AWS_ROLE_ARN_DEV` | Least-privilege role assumed for dev plans/applies |
+| `AWS_ROLE_ARN_PROD` | Least-privilege role assumed for prod plans/applies |
+| `TF_VAR_ENDPOINT_PUBLIC_ACCESS_CIDRS` | JSON-style CIDR list for the dev public EKS API endpoint, such as `["203.0.113.10/32"]` |
+
+Create an IAM OIDC provider for `https://token.actions.githubusercontent.com`, then create separate dev and prod IAM roles. Scope each trust policy to this repository and the intended branch/environment, for example:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": [
+            "repo:iamtejas23/terrafrom-eks-learn:ref:refs/heads/main",
+            "repo:iamtejas23/terrafrom-eks-learn:pull_request"
+          ]
+        }
+      }
+    }
+  ]
 }
 ```
 
-## Learning Flow
+Least privilege for each role should include only the AWS actions needed to manage the environment resources plus S3 access to that environment's state key and matching `.tflock` object. Production state access should not be granted to the dev role.
 
-Recommended order:
+## Kubernetes Upgrade
 
-1. Read `environments/dev/main.tf`.
-2. See how it calls `modules/vpc`.
-3. Open `modules/vpc/main.tf` and understand the network.
-4. Go back to `environments/dev/main.tf`.
-5. See how it passes VPC outputs into `modules/eks`.
-6. Open `modules/eks/main.tf` and understand the cluster.
-7. Run `terraform plan` from `environments/dev`.
-8. Read the plan before applying.
+The cluster version is pinned to EKS Kubernetes `1.36`, which is in Amazon EKS standard support in August 2026. Version `1.31` is only in extended support and reaches the end of extended support on November 26, 2026.
+
+Pinned add-ons in `modules/eks`:
+
+| Add-on | Version |
+| --- | --- |
+| CoreDNS | `v1.14.3-eksbuild.14` |
+| kube-proxy | `v1.36.0-eksbuild.17` |
+| VPC CNI | `v1.22.4-eksbuild.3` |
+| EKS Pod Identity Agent | `v1.3.10-eksbuild.2` |
+
+Before upgrading an existing cluster:
+
+1. Read the EKS release notes for every minor version between the current version and `1.36`.
+2. Run EKS upgrade insights and check for removed Kubernetes APIs.
+3. Upgrade one minor version at a time if the cluster already exists.
+4. Upgrade the control plane first.
+5. Upgrade managed node groups after the control plane is healthy.
+6. Update EKS add-ons and verify CoreDNS, kube-proxy, VPC CNI, and EKS Pod Identity Agent are healthy.
+7. Confirm applications do not rely on removed APIs such as `gitRepo` volumes in Kubernetes `1.36`.
+
+The module uses EKS managed node groups and AWS-managed add-ons. It does not add Karpenter, AWS Load Balancer Controller, EBS CSI, External Secrets, monitoring, or DR features.
+
+Useful AWS references:
+
+- EKS Kubernetes versions: <https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html>
+- EKS 1.36 release notes: <https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions-standard.html>
+- CoreDNS add-on versions: <https://docs.aws.amazon.com/eks/latest/userguide/managing-coredns.html>
+- kube-proxy add-on versions: <https://docs.aws.amazon.com/eks/latest/userguide/managing-kube-proxy.html>
+- VPC CNI add-on versions: <https://docs.aws.amazon.com/eks/latest/userguide/managing-vpc-cni.html>
+- Pod Identity Agent: <https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html>
+
+## Validation
+
+Run locally before opening a PR:
+
+```bash
+terraform fmt -check -recursive
+terraform -chdir=environments/dev init \
+  -backend-config="bucket=<your-state-bucket>" \
+  -backend-config="region=<state-bucket-region>"
+terraform -chdir=environments/dev validate
+terraform -chdir=environments/prod init \
+  -backend-config="bucket=<your-state-bucket>" \
+  -backend-config="region=<state-bucket-region>"
+terraform -chdir=environments/prod validate
+tflint --chdir=environments/dev --recursive
+tflint --chdir=environments/prod --recursive
+checkov --directory . --config-file .checkov.yaml
+```
 
 ## Cleanup
 
-To avoid AWS costs, destroy resources when you finish learning:
+To avoid AWS costs, destroy environment resources when you finish learning:
 
 ```bash
-cd environments/dev
-terraform destroy
+terraform -chdir=environments/dev destroy
+terraform -chdir=environments/prod destroy
 ```
 
-For prod:
-
-```bash
-cd environments/prod
-terraform destroy
-```
+Keep the backend bucket until all remote state objects are intentionally archived or deleted.

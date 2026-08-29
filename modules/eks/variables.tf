@@ -28,6 +28,17 @@ variable "kubernetes_version" {
   type        = string
 }
 
+variable "addon_versions" {
+  description = "Pinned Amazon EKS add-on versions compatible with the selected Kubernetes version"
+  type        = map(string)
+  default = {
+    coredns                = "v1.14.3-eksbuild.14"
+    kube-proxy             = "v1.36.0-eksbuild.17"
+    vpc-cni                = "v1.22.4-eksbuild.3"
+    eks-pod-identity-agent = "v1.3.10-eksbuild.2"
+  }
+}
+
 variable "endpoint_public_access" {
   description = "Enable public API server endpoint"
   type        = bool
