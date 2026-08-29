@@ -155,8 +155,8 @@ Use the same pattern for `environments/prod`, after confirming your runner or wo
 
 The repository includes two GitHub Actions workflows:
 
-- `.github/workflows/terraform-pr.yml`: PR checks for `dev` and `prod`.
-- `.github/workflows/terraform-deploy.yml`: protected `main` and manual plan/apply for `dev` and `prod`.
+- `.github/workflows/terraform-pr.yml`: PR checks for `dev`.
+- `.github/workflows/terraform-deploy.yml`: protected `main` and manual plan/apply for `dev`.
 
 The PR pipeline runs:
 
@@ -167,7 +167,9 @@ The PR pipeline runs:
 - `checkov`
 - `terraform plan`
 
-The deployment pipeline runs plan, waits on the GitHub Environment gate for the target environment, then applies the saved plan. Configure the GitHub `prod` Environment with required reviewers so production requires approval. Concurrency is scoped per environment to prevent overlapping Terraform runs.
+The deployment pipeline runs plan, waits on the GitHub Environment gate for the target environment, then applies the saved plan. Concurrency is scoped per environment to prevent overlapping Terraform runs.
+
+The current GitHub/AWS OIDC setup is configured for `dev` only. Re-enable `prod` in the workflow matrix after creating a separate production role, setting `AWS_ROLE_ARN_PROD`, and configuring the GitHub `prod` Environment with required reviewers.
 
 ## GitHub OIDC
 
@@ -180,10 +182,20 @@ Required GitHub variables:
 | `TF_STATE_BUCKET` | S3 bucket that stores Terraform state |
 | `TF_STATE_REGION` | AWS region for the state bucket and AWS provider |
 | `AWS_ROLE_ARN_DEV` | Least-privilege role assumed for dev plans/applies |
-| `AWS_ROLE_ARN_PROD` | Least-privilege role assumed for prod plans/applies |
+| `AWS_ROLE_ARN_PROD` | Least-privilege role assumed for prod plans/applies after prod is re-enabled |
 | `TF_VAR_ENDPOINT_PUBLIC_ACCESS_CIDRS` | JSON-style CIDR list for the dev public EKS API endpoint, such as `["203.0.113.10/32"]` |
 
-Create an IAM OIDC provider for `https://token.actions.githubusercontent.com`, then create separate dev and prod IAM roles. Scope each trust policy to this repository and the intended branch/environment, for example:
+Create an IAM OIDC provider for `https://token.actions.githubusercontent.com`, then create separate dev and prod IAM roles. This repository is configured to use GitHub's immutable OIDC subject format, so scope each trust policy to this repository's owner and repository IDs.
+
+Repository identity:
+
+| Field | Value |
+| --- | --- |
+| Repository | `tejasmane-cd/terrafrom-eks-learn` |
+| Owner ID | `242378642` |
+| Repository ID | `1267317998` |
+
+The dev role `github-actions-terraform-dev` should trust the PR, main-branch, and dev-environment subjects:
 
 ```json
 {
@@ -201,8 +213,9 @@ Create an IAM OIDC provider for `https://token.actions.githubusercontent.com`, t
         },
         "StringLike": {
           "token.actions.githubusercontent.com:sub": [
-            "repo:iamtejas23/terrafrom-eks-learn:ref:refs/heads/main",
-            "repo:iamtejas23/terrafrom-eks-learn:pull_request"
+            "repo:tejasmane-cd@242378642/terrafrom-eks-learn@1267317998:pull_request",
+            "repo:tejasmane-cd@242378642/terrafrom-eks-learn@1267317998:ref:refs/heads/main",
+            "repo:tejasmane-cd@242378642/terrafrom-eks-learn@1267317998:environment:dev"
           ]
         }
       }
@@ -211,7 +224,7 @@ Create an IAM OIDC provider for `https://token.actions.githubusercontent.com`, t
 }
 ```
 
-Least privilege for each role should include only the AWS actions needed to manage the environment resources plus S3 access to that environment's state key and matching `.tflock` object. Production state access should not be granted to the dev role.
+The prod role should use the same immutable repository prefix, but trust `environment:prod` for apply. Least privilege for each role should include only the AWS actions needed to manage the environment resources plus S3 access to that environment's state key and matching `.tflock` object. Production state access should not be granted to the dev role.
 
 ## Kubernetes Upgrade
 
