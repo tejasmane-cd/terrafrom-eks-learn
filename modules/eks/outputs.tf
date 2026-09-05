@@ -19,6 +19,11 @@ output "cluster_oidc_issuer_url" {
   value       = module.eks.cluster_oidc_issuer_url
 }
 
+output "oidc_provider_arn" {
+  description = "ARN of the OIDC provider (for IRSA)"
+  value       = module.eks.oidc_provider_arn
+}
+
 output "configure_kubectl" {
   description = "Command to update kubeconfig"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"

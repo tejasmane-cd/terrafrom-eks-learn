@@ -56,3 +56,40 @@ module "eks" {
 
   tags = var.tags
 }
+
+module "ebs_csi" {
+  source = "../../modules/ebs-csi"
+
+  providers = {
+    kubernetes = kubernetes
+  }
+
+  environment       = var.environment
+  cluster_name      = module.eks.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  addon_version     = var.ebs_csi_addon_version
+  tags              = var.tags
+
+  depends_on = [module.eks]
+}
+
+module "aws_load_balancer_controller" {
+  source = "../../modules/aws-load-balancer-controller"
+
+  providers = {
+    helm       = helm
+    kubernetes = kubernetes
+  }
+
+  environment            = var.environment
+  cluster_name           = module.eks.cluster_name
+  aws_region             = var.aws_region
+  vpc_id                 = module.vpc.vpc_id
+  oidc_provider_arn      = module.eks.oidc_provider_arn
+  chart_version          = var.aws_load_balancer_controller_chart_version
+  create_example_ingress = var.create_example_ingress
+  example_ingress_scheme = var.example_ingress_scheme
+  tags                   = var.tags
+
+  depends_on = [module.eks]
+}

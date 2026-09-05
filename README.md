@@ -10,22 +10,23 @@ terraform -chdir=environments/dev plan
 
 ## What you'll learn
 
-| Layer | What it does |
+| Module | What it does |
 | --- | --- |
-| `modules/vpc` | VPC, public/private subnets, NAT, DNS, Kubernetes ELB subnet tags |
-| `modules/eks` | EKS cluster, managed node groups, core add-ons (CNI, CoreDNS, kube-proxy) |
-| `environments/*` | Wires modules together with env-specific settings |
+| `modules/vpc` | VPC, subnets, NAT, Kubernetes ELB subnet tags |
+| `modules/eks` | EKS cluster, node groups, core add-ons |
+| `modules/irsa` | IAM roles for Kubernetes service accounts |
+| `modules/ebs-csi` | EBS CSI driver (IRSA + add-on + `gp3` StorageClass) |
+| `modules/aws-load-balancer-controller` | ALB controller (IRSA + Helm + IngressClass + demo Ingress) |
+| `environments/*` | Wires modules with env-specific settings |
 
-Pattern: **environment root → local wrapper module → `terraform-aws-modules`**
+Pattern: **environment → local wrapper → community module / Helm / Kubernetes**
 
 ## Project layout
 
 ```text
-bootstrap/s3-backend/   # one-time: create the remote state bucket
-modules/vpc/            # networking
-modules/eks/            # cluster
-environments/dev/       # smaller, public API, cheaper
-environments/prod/      # HA NAT, private API, deletion protection
+bootstrap/s3-backend/
+modules/{vpc,eks,irsa,ebs-csi,aws-load-balancer-controller}/
+environments/{dev,prod}/
 ```
 
 ## Quick start
@@ -34,7 +35,7 @@ environments/prod/      # HA NAT, private API, deletion protection
 
 ```bash
 cd bootstrap/s3-backend
-cp terraform.tfvars.example terraform.tfvars   # edit bucket name + IAM principals
+cp terraform.tfvars.example terraform.tfvars
 terraform init && terraform apply
 ```
 
@@ -48,14 +49,23 @@ terraform -chdir=environments/dev init \
 terraform -chdir=environments/dev apply
 ```
 
-**3. Connect to the cluster**
+On a **brand-new** cluster, platform add-ons need the API server first:
+
+```bash
+terraform -chdir=environments/dev apply -target=module.vpc -target=module.eks
+terraform -chdir=environments/dev apply
+```
+
+**3. Connect and verify**
 
 ```bash
 $(terraform -chdir=environments/dev output -raw configure_kubectl)
 kubectl get nodes
+kubectl get ingress -n alb-demo    # demo ALB (dev only)
+kubectl get storageclass gp3
 ```
 
-**4. Clean up when done**
+**4. Clean up**
 
 ```bash
 terraform -chdir=environments/dev destroy
@@ -65,24 +75,15 @@ terraform -chdir=environments/dev destroy
 
 | | Dev | Prod |
 | --- | --- | --- |
-| VPC CIDR | `10.10.0.0/16` | `10.20.0.0/16` |
-| AZs / NAT | 2 AZs, single NAT | 3 AZs, NAT per AZ |
 | EKS API | Public (CIDR-restricted) | Private only |
-| Nodes | 2 × `t3.small` | 3 × `t3.small` (scales to 10) |
+| Demo Ingress | Yes (`alb-demo` namespace) | No |
+| Nodes | 2 × `t3.small` | 3 × `t3.small` |
 
-Prod's private API needs VPN, bastion, or a private runner for `kubectl` and Terraform.
+Prod needs VPC access for `kubectl`, Helm, and Terraform Kubernetes/Helm providers.
 
 ## Remote state
 
-- S3 backend with native lockfiles (`use_lockfile = true`)
-- Keys: `terrafrom-eks-learn/dev/terraform.tfstate` and `.../prod/...`
-- Never commit `.tfstate` or real `.tfvars` files
-
-## CI/CD (optional)
-
-GitHub Actions runs `fmt`, `validate`, `tflint`, `checkov`, and `plan` on PRs for **dev**. Deploy uses OIDC (no long-lived AWS keys). See workflow files in `.github/workflows/`.
-
-Required GitHub variables: `TF_STATE_BUCKET`, `TF_STATE_REGION`, `AWS_ROLE_ARN_DEV`, `TF_VAR_ENDPOINT_PUBLIC_ACCESS_CIDRS`.
+S3 backend with lockfiles. Keys: `terrafrom-eks-learn/{dev,prod}/terraform.tfstate`.
 
 ## Pinned versions
 
@@ -90,15 +91,12 @@ Required GitHub variables: `TF_STATE_BUCKET`, `TF_STATE_REGION`, `AWS_ROLE_ARN_D
 | --- | --- |
 | Terraform | `>= 1.10.0, < 1.17.0` |
 | Kubernetes | `1.36` |
-| VPC module | `terraform-aws-modules/vpc/aws ~> 5.21` |
-| EKS module | `terraform-aws-modules/eks/aws ~> 21.25` |
+| EBS CSI add-on | `v1.65.0-eksbuild.1` |
+| AWS LB Controller chart | `1.11.0` |
 
-## Out of scope (good next modules to add)
+## Next modules to add
 
-- AWS Load Balancer Controller + Ingress (ALB)
-- EBS CSI (persistent volumes)
-- IRSA (IAM roles for service accounts)
-- Monitoring, Karpenter, External DNS
+Monitoring, Karpenter, External DNS, cert-manager.
 
 ## Local validation
 
@@ -108,8 +106,3 @@ terraform -chdir=environments/dev validate
 tflint --chdir=environments/dev --recursive
 checkov --directory . --config-file .checkov.yaml
 ```
-
-## References
-
-- [EKS Kubernetes versions](https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html)
-- [terraform-aws-modules/eks](https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest)

@@ -16,7 +16,3 @@ skip-check:
   # Terraform includes abort_incomplete_multipart_upload in the lifecycle rule;
   # Checkov still flags this provider v6 resource shape.
   - CKV_AWS_300
-  # This learning repo intentionally keeps add-ons limited to the requested scope.
-  # EBS CSI, AWS Load Balancer Controller, monitoring, and similar platform features
-  # are documented as out of scope for this pass.
-  - CKV_AWS_338

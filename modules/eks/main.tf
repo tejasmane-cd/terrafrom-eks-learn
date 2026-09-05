@@ -36,6 +36,8 @@ module "eks" {
   kubernetes_version = var.kubernetes_version
   region             = var.aws_region
 
+  enable_irsa = true
+
   vpc_id     = var.vpc_id
   subnet_ids = var.private_subnet_ids
 
