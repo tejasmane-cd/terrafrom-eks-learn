@@ -62,3 +62,38 @@ variable "example_ingress_scheme" {
   type        = string
   default     = "internet-facing"
 }
+
+variable "cert_manager_acme_email" {
+  description = "Email for the Let's Encrypt ACME account used by cert-manager"
+  type        = string
+}
+
+variable "cert_manager_chart_version" {
+  description = "Pinned Helm chart version for cert-manager"
+  type        = string
+  default     = "v1.17.2"
+}
+
+variable "cert_manager_acme_solver_type" {
+  description = "ACME solver for cert-manager: http01 (ALB) or dns01 (Route53)"
+  type        = string
+  default     = "http01"
+}
+
+variable "cert_manager_route53_hosted_zone_arns" {
+  description = "Route53 zone ARNs for DNS-01 (required when cert_manager_acme_solver_type is dns01)"
+  type        = list(string)
+  default     = []
+}
+
+variable "cert_manager_enable_staging_issuer" {
+  description = "Create a Let's Encrypt staging ClusterIssuer"
+  type        = bool
+  default     = true
+}
+
+variable "cert_manager_enable_production_issuer" {
+  description = "Create a Let's Encrypt production ClusterIssuer"
+  type        = bool
+  default     = false
+}

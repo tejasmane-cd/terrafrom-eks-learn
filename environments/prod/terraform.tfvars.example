@@ -6,6 +6,10 @@ kubernetes_version = "1.36"
 
 endpoint_public_access_cidrs = []
 
+cert_manager_acme_email = "you@example.com"
+
+# cert_manager_route53_hosted_zone_arns = ["arn:aws:route53:::hostedzone/Z1234567890ABC"]
+
 tags = {
   Owner = "your-name"
 }

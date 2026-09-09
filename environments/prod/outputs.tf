@@ -23,3 +23,8 @@ output "alb_ingress_class" {
   description = "IngressClass for ALB-backed Ingress resources"
   value       = module.aws_load_balancer_controller.ingress_class_name
 }
+
+output "cert_manager_production_issuer" {
+  description = "Let's Encrypt production ClusterIssuer for automatic TLS"
+  value       = module.cert_manager.production_cluster_issuer
+}

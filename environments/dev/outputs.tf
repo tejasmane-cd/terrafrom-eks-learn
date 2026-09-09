@@ -28,3 +28,8 @@ output "alb_demo_ingress" {
   description = "Demo Ingress name when create_example_ingress is enabled"
   value       = module.aws_load_balancer_controller.example_ingress_name
 }
+
+output "cert_manager_staging_issuer" {
+  description = "Let's Encrypt staging ClusterIssuer for automatic TLS"
+  value       = module.cert_manager.staging_cluster_issuer
+}

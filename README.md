@@ -17,6 +17,7 @@ terraform -chdir=environments/dev plan
 | `modules/irsa` | IAM roles for Kubernetes service accounts |
 | `modules/ebs-csi` | EBS CSI driver (IRSA + add-on + `gp3` StorageClass) |
 | `modules/aws-load-balancer-controller` | ALB controller (IRSA + Helm + IngressClass + demo Ingress) |
+| `modules/cert-manager` | Automatic TLS via Let's Encrypt (Helm + ClusterIssuer) |
 | `environments/*` | Wires modules with env-specific settings |
 
 Pattern: **environment → local wrapper → community module / Helm / Kubernetes**
@@ -25,7 +26,7 @@ Pattern: **environment → local wrapper → community module / Helm / Kubernete
 
 ```text
 bootstrap/s3-backend/
-modules/{vpc,eks,irsa,ebs-csi,aws-load-balancer-controller}/
+modules/{vpc,eks,irsa,ebs-csi,aws-load-balancer-controller,cert-manager}/
 environments/{dev,prod}/
 ```
 
@@ -61,7 +62,8 @@ terraform -chdir=environments/dev apply
 ```bash
 $(terraform -chdir=environments/dev output -raw configure_kubectl)
 kubectl get nodes
-kubectl get ingress -n alb-demo    # demo ALB (dev only)
+kubectl get clusterissuer
+kubectl get pods -n cert-manager
 kubectl get storageclass gp3
 ```
 
@@ -71,12 +73,35 @@ kubectl get storageclass gp3
 terraform -chdir=environments/dev destroy
 ```
 
+## Automatic TLS (cert-manager)
+
+| Env | Default solver | Default issuer |
+| --- | --- | --- |
+| dev | HTTP-01 via ALB | Let's Encrypt **staging** |
+| prod | DNS-01 via Route53 (IRSA) | Let's Encrypt **production** |
+
+Add to an Ingress with a real DNS name pointing at the ALB:
+
+```yaml
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  tls:
+    - hosts:
+        - app.example.com
+      secretName: app-tls
+```
+
+Set `cert_manager_acme_email` in `terraform.tfvars`. For prod DNS-01, also set `cert_manager_route53_hosted_zone_arns`.
+
 ## Dev vs prod
 
 | | Dev | Prod |
 | --- | --- | --- |
 | EKS API | Public (CIDR-restricted) | Private only |
 | Demo Ingress | Yes (`alb-demo` namespace) | No |
+| cert-manager | HTTP-01 + staging issuer | DNS-01 + production issuer |
 | Nodes | 2 × `t3.small` | 3 × `t3.small` |
 
 Prod needs VPC access for `kubectl`, Helm, and Terraform Kubernetes/Helm providers.
@@ -93,10 +118,11 @@ S3 backend with lockfiles. Keys: `terrafrom-eks-learn/{dev,prod}/terraform.tfsta
 | Kubernetes | `1.36` |
 | EBS CSI add-on | `v1.65.0-eksbuild.1` |
 | AWS LB Controller chart | `1.11.0` |
+| cert-manager chart | `v1.17.2` |
 
 ## Next modules to add
 
-Monitoring, Karpenter, External DNS, cert-manager.
+Monitoring, Karpenter, External DNS.
 
 ## Local validation
 

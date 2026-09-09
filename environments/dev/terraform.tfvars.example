@@ -7,6 +7,8 @@ kubernetes_version = "1.36"
 # Required: restrict to your office/VPN IP — never leave as 0.0.0.0/0 in shared accounts
 endpoint_public_access_cidrs = ["YOUR_IP/32"]
 
+cert_manager_acme_email = "you@example.com"
+
 tags = {
   Owner = "your-name"
 }

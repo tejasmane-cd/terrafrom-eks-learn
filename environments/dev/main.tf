@@ -106,3 +106,28 @@ module "aws_load_balancer_controller" {
 
   depends_on = [module.eks]
 }
+
+module "cert_manager" {
+  source = "../../modules/cert-manager"
+
+  providers = {
+    helm       = helm
+    kubernetes = kubernetes
+  }
+
+  environment       = var.environment
+  cluster_name      = module.eks.cluster_name
+  aws_region        = var.aws_region
+  oidc_provider_arn = module.eks.oidc_provider_arn
+
+  acme_email               = var.cert_manager_acme_email
+  chart_version            = var.cert_manager_chart_version
+  acme_solver_type         = var.cert_manager_acme_solver_type
+  route53_hosted_zone_arns = var.cert_manager_route53_hosted_zone_arns
+  enable_staging_issuer    = var.cert_manager_enable_staging_issuer
+  enable_production_issuer = var.cert_manager_enable_production_issuer
+  ingress_class            = module.aws_load_balancer_controller.ingress_class_name
+  tags                     = var.tags
+
+  depends_on = [module.aws_load_balancer_controller]
+}
