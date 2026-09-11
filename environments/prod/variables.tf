@@ -98,3 +98,39 @@ variable "cert_manager_enable_production_issuer" {
   type        = bool
   default     = true
 }
+
+variable "enable_external_dns" {
+  description = "Deploy External DNS for automated Route53 record management"
+  type        = bool
+  default     = false
+}
+
+variable "external_dns_route53_hosted_zone_arns" {
+  description = "Route53 hosted zone ARNs External DNS may manage"
+  type        = list(string)
+  default     = []
+}
+
+variable "external_dns_domain_filters" {
+  description = "Domains External DNS is allowed to manage (e.g. example.com)"
+  type        = list(string)
+  default     = []
+}
+
+variable "external_dns_chart_version" {
+  description = "Pinned Helm chart version for External DNS"
+  type        = string
+  default     = "1.15.2"
+}
+
+variable "external_dns_policy" {
+  description = "DNS record policy: sync, upsert-only, or create-only"
+  type        = string
+  default     = "upsert-only"
+}
+
+variable "external_dns_txt_owner_id" {
+  description = "TXT owner ID for External DNS (defaults to cluster name)"
+  type        = string
+  default     = null
+}

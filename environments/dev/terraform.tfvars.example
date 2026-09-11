@@ -9,6 +9,11 @@ endpoint_public_access_cidrs = ["YOUR_IP/32"]
 
 cert_manager_acme_email = "you@example.com"
 
+# Optional: automated Route53 DNS for Ingress/Service hostnames
+# enable_external_dns = true
+# external_dns_route53_hosted_zone_arns = ["arn:aws:route53:::hostedzone/Z1234567890ABC"]
+# external_dns_domain_filters           = ["example.com"]
+
 tags = {
   Owner = "your-name"
 }

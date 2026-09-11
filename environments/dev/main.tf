@@ -131,3 +131,27 @@ module "cert_manager" {
 
   depends_on = [module.aws_load_balancer_controller]
 }
+
+module "external_dns" {
+  count = var.enable_external_dns ? 1 : 0
+
+  source = "../../modules/external-dns"
+
+  providers = {
+    helm       = helm
+    kubernetes = kubernetes
+  }
+
+  environment              = var.environment
+  cluster_name             = module.eks.cluster_name
+  aws_region               = var.aws_region
+  oidc_provider_arn        = module.eks.oidc_provider_arn
+  route53_hosted_zone_arns = var.external_dns_route53_hosted_zone_arns
+  domain_filters           = var.external_dns_domain_filters
+  chart_version            = var.external_dns_chart_version
+  policy                   = var.external_dns_policy
+  txt_owner_id             = var.external_dns_txt_owner_id
+  tags                     = var.tags
+
+  depends_on = [module.eks]
+}
