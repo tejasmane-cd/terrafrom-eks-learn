@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/**"
-      - ".github/scripts/**"
       - ".checkov.yaml"
       - ".tflint.hcl"
       - "environments/**"
@@ -50,9 +49,6 @@ jobs:
           audience: sts.amazonaws.com
           role-session-name: terraform-plan-${{ matrix.environment }}
 
-      - name: Allow this runner to reach the EKS API
-        run: .github/scripts/append-runner-eks-cidr.sh '${{ vars.TF_VAR_ENDPOINT_PUBLIC_ACCESS_CIDRS }}'
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -77,10 +73,6 @@ jobs:
             printf '%s\n' "$cluster" >&2
             exit 1
           fi
-
-      - name: Open EKS API to this runner before plan
-        if: steps.cluster.outputs.exists == 'true'
-        run: .github/scripts/ensure-eks-public-access-for-runner.sh eks-learn-${{ matrix.environment }} "${{ env.AWS_REGION }}"
 
       - name: Terraform plan
         env:
@@ -136,9 +128,6 @@ jobs:
           audience: sts.amazonaws.com
           role-session-name: terraform-apply-${{ matrix.environment }}
 
-      - name: Allow this runner to reach the EKS API
-        run: .github/scripts/append-runner-eks-cidr.sh '${{ vars.TF_VAR_ENDPOINT_PUBLIC_ACCESS_CIDRS }}'
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -156,16 +145,5 @@ jobs:
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="region=${TF_STATE_REGION}"
 
-      - name: Open EKS API to this runner before apply
-        env:
-          CLUSTER_NAME: eks-learn-${{ matrix.environment }}
-        run: |
-          if aws eks describe-cluster --name "$CLUSTER_NAME" >/dev/null 2>&1; then
-            .github/scripts/ensure-eks-public-access-for-runner.sh "$CLUSTER_NAME" "${{ env.AWS_REGION }}"
-          fi
-
       - name: Terraform apply
-        run: |
-          # Re-plan on this runner so EKS API CIDRs match this job's egress IP (plan artifact may be from another runner).
-          terraform -chdir=environments/${{ matrix.environment }} plan -no-color -out=tfplan
-          terraform -chdir=environments/${{ matrix.environment }} apply -no-color tfplan
+        run: terraform -chdir=environments/${{ matrix.environment }} apply -no-color tfplan

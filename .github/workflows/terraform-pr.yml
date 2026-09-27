@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - ".github/workflows/**"
-      - ".github/scripts/**"
       - ".checkov.yaml"
       - ".tflint.hcl"
       - "bootstrap/**"
@@ -47,9 +46,6 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           audience: sts.amazonaws.com
           role-session-name: terraform-pr-${{ matrix.environment }}
-
-      - name: Allow this runner to reach the EKS API
-        run: .github/scripts/append-runner-eks-cidr.sh '${{ vars.TF_VAR_ENDPOINT_PUBLIC_ACCESS_CIDRS }}'
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -94,10 +90,6 @@ jobs:
             printf '%s\n' "$cluster" >&2
             exit 1
           fi
-
-      - name: Open EKS API to this runner before plan
-        if: steps.cluster.outputs.exists == 'true'
-        run: .github/scripts/ensure-eks-public-access-for-runner.sh eks-learn-${{ matrix.environment }} "${{ env.AWS_REGION }}"
 
       - name: Terraform plan
         env:

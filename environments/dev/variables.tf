@@ -33,12 +33,6 @@ variable "endpoint_public_access_cidrs" {
   type        = list(string)
 }
 
-variable "grant_terraform_caller_eks_view_access" {
-  description = "Grant the IAM principal running Terraform EKS view access (AmazonEKSViewPolicy + AmazonEKSAdminViewPolicy)"
-  type        = bool
-  default     = true
-}
-
 variable "eks_console_viewer_principal_arns" {
   description = "IAM user/role ARNs for EKS console read access (add the ARN shown in the console account menu)"
   type        = list(string)

@@ -38,13 +38,13 @@ resource "aws_iam_policy" "eks_console_viewer" {
 
 locals {
   eks_console_viewer_iam_user_names = {
-    for arn in local.eks_console_viewer_principal_arns :
+    for arn in distinct(var.eks_console_viewer_principal_arns) :
     arn => element(split("/", arn), length(split("/", arn)) - 1)
     if can(regex(":user/", arn))
   }
 
   eks_console_viewer_iam_role_names = {
-    for arn in local.eks_console_viewer_principal_arns :
+    for arn in distinct(var.eks_console_viewer_principal_arns) :
     arn => element(split("/", arn), length(split("/", arn)) - 1)
     if can(regex(":role/", arn)) && !can(regex("aws-service-role/", arn))
   }

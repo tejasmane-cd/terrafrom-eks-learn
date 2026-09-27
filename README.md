@@ -39,3 +39,5 @@ The PR plan and deploy workflows use `tsmane8787@gmail.com` for the Let's Encryp
 
 On the first deployment, when the EKS cluster does not exist yet, the deploy workflow plans and applies only the VPC and EKS cluster. Rerun the workflow after that succeeds to plan and deploy the Kubernetes add-ons.
 
+**Dev** uses a public EKS API (`0.0.0.0/0`) so CI and `kubectl` work without chasing GitHub runner IPs. Tighten CIDRs in prod.
+

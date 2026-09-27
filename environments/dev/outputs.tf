@@ -21,7 +21,7 @@ output "eks_console_viewer_iam_policy_arn" {
 
 output "eks_console_viewer_principal_arns" {
   description = "IAM principals granted EKS console/kubernetes view policies on the cluster"
-  value       = local.eks_console_viewer_principal_arns
+  value       = distinct(var.eks_console_viewer_principal_arns)
 }
 
 output "ebs_csi_storage_class" {

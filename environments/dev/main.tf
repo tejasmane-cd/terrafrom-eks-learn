@@ -8,8 +8,6 @@ moved {
   to   = module.eks.module.eks
 }
 
-data "aws_caller_identity" "current" {}
-
 data "aws_iam_role" "github_actions_terraform_dev" {
   name = "github-actions-terraform-dev"
 }
@@ -18,26 +16,8 @@ locals {
   eks_kubernetes_view_policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
   eks_console_view_policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminViewPolicy"
 
-  # EKS access entries accept IAM user/role ARNs only (not STS assumed-role session ARNs).
-  terraform_caller_eks_principal_arn = (
-    can(regex("^arn:aws:sts::\\d+:assumed-role/([^/]+)/", data.aws_caller_identity.current.arn))
-    ? "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${regex("^arn:aws:sts::\\d+:assumed-role/([^/]+)/", data.aws_caller_identity.current.arn)}"
-    : data.aws_caller_identity.current.arn
-  )
-
-  eks_access_entry_principal_arns = [
-    data.aws_iam_role.github_actions_terraform_dev.arn,
-  ]
-
-  eks_console_viewer_principal_arns = distinct([
-    for arn in concat(
-      var.eks_console_viewer_principal_arns,
-      var.grant_terraform_caller_eks_view_access ? [local.terraform_caller_eks_principal_arn] : [],
-    ) : arn if !contains(local.eks_access_entry_principal_arns, arn)
-  ])
-
   eks_console_viewer_access_entries = {
-    for principal_arn in local.eks_console_viewer_principal_arns :
+    for principal_arn in distinct(var.eks_console_viewer_principal_arns) :
     "console_viewer_${replace(replace(replace(principal_arn, "arn:aws:iam::", ""), ":", "_"), "/", "_")}" => {
       principal_arn = principal_arn
       policy_associations = {
