@@ -5,7 +5,7 @@ output "iam_role_arn" {
 
 output "ingress_class_name" {
   description = "IngressClass name for ALB-backed Ingress resources"
-  value       = kubernetes_ingress_class_v1.alb.metadata[0].name
+  value       = local.ingress_class_name
 }
 
 output "example_ingress_name" {

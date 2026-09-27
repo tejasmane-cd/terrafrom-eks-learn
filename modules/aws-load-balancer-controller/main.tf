@@ -9,6 +9,8 @@ locals {
   )
 
   service_account_name = "aws-load-balancer-controller"
+  # Helm chart creates the IngressClass; do not duplicate with kubernetes_ingress_class_v1.
+  ingress_class_name   = "alb"
 }
 
 module "irsa" {
@@ -57,25 +59,14 @@ resource "helm_release" "controller" {
         create = false
         name   = local.service_account_name
       }
+
+      ingressClass               = local.ingress_class_name
+      createIngressClassResource = true
+      defaultIngressClass        = var.ingress_class_is_default
     }),
   ]
 
   depends_on = [kubernetes_service_account_v1.controller]
-}
-
-resource "kubernetes_ingress_class_v1" "alb" {
-  metadata {
-    name = "alb"
-    annotations = {
-      "ingressclass.kubernetes.io/is-default-class" = tostring(var.ingress_class_is_default)
-    }
-  }
-
-  spec {
-    controller = "ingress.k8s.aws/alb"
-  }
-
-  depends_on = [helm_release.controller]
 }
 
 resource "kubernetes_namespace_v1" "demo" {
@@ -168,7 +159,7 @@ resource "kubernetes_ingress_v1" "demo" {
   }
 
   spec {
-    ingress_class_name = kubernetes_ingress_class_v1.alb.metadata[0].name
+    ingress_class_name = local.ingress_class_name
 
     rule {
       http {
