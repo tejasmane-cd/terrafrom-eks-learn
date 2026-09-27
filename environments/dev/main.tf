@@ -8,8 +8,58 @@ moved {
   to   = module.eks.module.eks
 }
 
+data "aws_caller_identity" "current" {}
+
 data "aws_iam_role" "github_actions_terraform_dev" {
   name = "github-actions-terraform-dev"
+}
+
+locals {
+  eks_kubernetes_view_policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
+  eks_console_view_policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminViewPolicy"
+
+  eks_console_viewer_principal_arns = distinct(concat(
+    var.eks_console_viewer_principal_arns,
+    var.grant_terraform_caller_eks_view_access ? [data.aws_caller_identity.current.arn] : [],
+  ))
+
+  eks_console_viewer_access_entries = {
+    for principal_arn in local.eks_console_viewer_principal_arns :
+    "console_viewer_${replace(replace(replace(principal_arn, "arn:aws:iam::", ""), ":", "_"), "/", "_")}" => {
+      principal_arn = principal_arn
+      policy_associations = {
+        kubernetes_view = {
+          policy_arn = local.eks_kubernetes_view_policy_arn
+          access_scope = {
+            type = "cluster"
+          }
+        }
+        console_view = {
+          policy_arn = local.eks_console_view_policy_arn
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+
+  eks_access_entries = merge(
+    {
+      cluster_creator = {
+        principal_arn = data.aws_iam_role.github_actions_terraform_dev.arn
+        policy_associations = {
+          admin = {
+            policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+            access_scope = {
+              type = "cluster"
+            }
+          }
+        }
+      }
+    },
+    local.eks_console_viewer_access_entries,
+  )
 }
 
 module "vpc" {
@@ -42,19 +92,7 @@ module "eks" {
   deletion_protection          = false
 
   enable_cluster_creator_admin_permissions = false
-  access_entries = {
-    cluster_creator = {
-      principal_arn = data.aws_iam_role.github_actions_terraform_dev.arn
-      policy_associations = {
-        admin = {
-          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-          access_scope = {
-            type = "cluster"
-          }
-        }
-      }
-    }
-  }
+  access_entries                           = local.eks_access_entries
 
   eks_managed_node_groups = {
     default = {

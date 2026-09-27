@@ -14,6 +14,16 @@ output "configure_kubectl" {
   value = module.eks.configure_kubectl
 }
 
+output "eks_console_viewer_iam_policy_arn" {
+  description = "Attach this IAM policy to console users/roles that are not account root"
+  value       = aws_iam_policy.eks_console_viewer.arn
+}
+
+output "eks_console_viewer_principal_arns" {
+  description = "IAM principals granted EKS console/kubernetes view policies on the cluster"
+  value       = local.eks_console_viewer_principal_arns
+}
+
 output "ebs_csi_storage_class" {
   description = "gp3 StorageClass backed by the EBS CSI driver"
   value       = module.ebs_csi.storage_class_name

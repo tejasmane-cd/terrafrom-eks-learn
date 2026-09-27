@@ -7,6 +7,10 @@ kubernetes_version = "1.36"
 # Required: restrict to your office/VPN IP — never leave as 0.0.0.0/0 in shared accounts
 endpoint_public_access_cidrs = ["YOUR_IP/32"]
 
+# EKS console read access (Nodes tab): add your console IAM user/role ARN
+# eks_console_viewer_principal_arns = ["arn:aws:iam::ACCOUNT_ID:user/your-user"]
+# grant_terraform_caller_eks_view_access = true  # also grants the Terraform caller
+
 cert_manager_acme_email = "you@example.com"
 
 # Optional: automated Route53 DNS for Ingress/Service hostnames
