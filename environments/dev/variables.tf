@@ -29,8 +29,9 @@ variable "kubernetes_version" {
 }
 
 variable "endpoint_public_access_cidrs" {
-  description = "CIDRs allowed to access the public EKS API endpoint (e.g. your office/VPN IP: [\"1.2.3.4/32\"])"
+  description = "CIDRs allowed to access the public EKS API endpoint. Dev default is open for learning/CI; override in terraform.tfvars locally."
   type        = list(string)
+  default     = ["0.0.0.0/0"]
 }
 
 variable "eks_console_viewer_principal_arns" {
