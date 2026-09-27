@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/**"
+      - ".github/scripts/**"
       - ".checkov.yaml"
       - ".tflint.hcl"
       - "environments/**"

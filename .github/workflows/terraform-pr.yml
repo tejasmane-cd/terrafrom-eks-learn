@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/**"
+      - ".github/scripts/**"
       - ".checkov.yaml"
       - ".tflint.hcl"
       - "bootstrap/**"
