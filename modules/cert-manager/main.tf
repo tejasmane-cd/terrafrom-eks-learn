@@ -32,6 +32,48 @@ locals {
       }
     },
   ]
+
+  # Deployed via Helm so Terraform plan does not call the Kubernetes API (CRD schema lookup).
+  cluster_issuer_extra_objects = concat(
+    var.enable_staging_issuer ? [
+      {
+        apiVersion = "cert-manager.io/v1"
+        kind       = "ClusterIssuer"
+        metadata = {
+          name = local.staging_issuer_name
+        }
+        spec = {
+          acme = {
+            server = "https://acme-staging-v02.api.letsencrypt.org/directory"
+            email  = var.acme_email
+            privateKeySecretRef = {
+              name = "${local.staging_issuer_name}-account-key"
+            }
+            solvers = local.acme_solvers
+          }
+        }
+      },
+    ] : [],
+    var.enable_production_issuer ? [
+      {
+        apiVersion = "cert-manager.io/v1"
+        kind       = "ClusterIssuer"
+        metadata = {
+          name = local.production_issuer_name
+        }
+        spec = {
+          acme = {
+            server = "https://acme-v02.api.letsencrypt.org/directory"
+            email  = var.acme_email
+            privateKeySecretRef = {
+              name = "${local.production_issuer_name}-account-key"
+            }
+            solvers = local.acme_solvers
+          }
+        }
+      },
+    ] : [],
+  )
 }
 
 module "irsa" {
@@ -91,56 +133,10 @@ resource "helm_release" "cert_manager" {
         create = true
         name   = local.service_account_name
       }
+
+      extraObjects = local.cluster_issuer_extra_objects
     }),
   ]
 
   depends_on = [kubernetes_service_account_v1.cert_manager]
-}
-
-resource "kubernetes_manifest" "cluster_issuer_staging" {
-  count = var.enable_staging_issuer ? 1 : 0
-
-  manifest = {
-    apiVersion = "cert-manager.io/v1"
-    kind       = "ClusterIssuer"
-    metadata = {
-      name = local.staging_issuer_name
-    }
-    spec = {
-      acme = {
-        server = "https://acme-staging-v02.api.letsencrypt.org/directory"
-        email  = var.acme_email
-        privateKeySecretRef = {
-          name = "${local.staging_issuer_name}-account-key"
-        }
-        solvers = local.acme_solvers
-      }
-    }
-  }
-
-  depends_on = [helm_release.cert_manager]
-}
-
-resource "kubernetes_manifest" "cluster_issuer_production" {
-  count = var.enable_production_issuer ? 1 : 0
-
-  manifest = {
-    apiVersion = "cert-manager.io/v1"
-    kind       = "ClusterIssuer"
-    metadata = {
-      name = local.production_issuer_name
-    }
-    spec = {
-      acme = {
-        server = "https://acme-v02.api.letsencrypt.org/directory"
-        email  = var.acme_email
-        privateKeySecretRef = {
-          name = "${local.production_issuer_name}-account-key"
-        }
-        solvers = local.acme_solvers
-      }
-    }
-  }
-
-  depends_on = [helm_release.cert_manager]
 }
