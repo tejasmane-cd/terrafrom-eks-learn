@@ -78,5 +78,28 @@ jobs:
           config_file: .checkov.yaml
           quiet: true
 
+      - name: Check EKS cluster
+        id: cluster
+        env:
+          CLUSTER_NAME: eks-learn-${{ matrix.environment }}
+        run: |
+          if cluster=$(aws eks describe-cluster --name "$CLUSTER_NAME" 2>&1); then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$cluster" == *ResourceNotFoundException* ]]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' "$cluster" >&2
+            exit 1
+          fi
+
       - name: Terraform plan
-        run: terraform -chdir=environments/${{ matrix.environment }} plan -no-color -out=tfplan
+        env:
+          CLUSTER_EXISTS: ${{ steps.cluster.outputs.exists }}
+        run: |
+          if [[ "$CLUSTER_EXISTS" == "true" ]]; then
+            terraform -chdir=environments/${{ matrix.environment }} plan -no-color -out=tfplan
+          else
+            terraform -chdir=environments/${{ matrix.environment }} plan -no-color \
+              -target=module.vpc -target=module.eks -out=tfplan
+            echo "EKS cluster is not present yet; this plan covers VPC/EKS bootstrap only." >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -61,8 +61,31 @@ jobs:
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="region=${TF_STATE_REGION}"
 
+      - name: Check EKS cluster
+        id: cluster
+        env:
+          CLUSTER_NAME: eks-learn-${{ matrix.environment }}
+        run: |
+          if cluster=$(aws eks describe-cluster --name "$CLUSTER_NAME" 2>&1); then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$cluster" == *ResourceNotFoundException* ]]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' "$cluster" >&2
+            exit 1
+          fi
+
       - name: Terraform plan
-        run: terraform -chdir=environments/${{ matrix.environment }} plan -no-color -out=tfplan
+        env:
+          CLUSTER_EXISTS: ${{ steps.cluster.outputs.exists }}
+        run: |
+          if [[ "$CLUSTER_EXISTS" == "true" ]]; then
+            terraform -chdir=environments/${{ matrix.environment }} plan -no-color -out=tfplan
+          else
+            terraform -chdir=environments/${{ matrix.environment }} plan -no-color \
+              -target=module.vpc -target=module.eks -out=tfplan
+            echo "EKS cluster bootstrapped. Rerun this workflow to plan and deploy platform add-ons." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload plan
         uses: actions/upload-artifact@v4

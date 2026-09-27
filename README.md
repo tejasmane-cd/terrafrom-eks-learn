@@ -37,3 +37,5 @@ environments/{dev,prod}/
 
 The PR plan and deploy workflows use `tsmane8787@gmail.com` for the Let's Encrypt ACME account, passed to Terraform as `cert_manager_acme_email`.
 
+On the first deployment, when the EKS cluster does not exist yet, the deploy workflow plans and applies only the VPC and EKS cluster. Rerun the workflow after that succeeds to plan and deploy the Kubernetes add-ons.
+
