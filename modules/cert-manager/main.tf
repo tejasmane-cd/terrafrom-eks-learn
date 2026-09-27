@@ -134,9 +134,13 @@ resource "helm_release" "cert_manager" {
         name   = local.service_account_name
       }
 
-      extraObjects = local.cluster_issuer_extra_objects
+      # Chart template expects each entry as a YAML string, not a nested object.
+      extraObjects = [for obj in local.cluster_issuer_extra_objects : yamlencode(obj)]
     }),
   ]
 
-  depends_on = [kubernetes_service_account_v1.cert_manager]
+  depends_on = [
+    kubernetes_namespace_v1.this,
+    kubernetes_service_account_v1.cert_manager,
+  ]
 }
