@@ -37,6 +37,7 @@ jobs:
       AWS_ROLE_ARN: ${{ matrix.environment == 'dev' && vars.AWS_ROLE_ARN_DEV || vars.AWS_ROLE_ARN_PROD }}
       AWS_REGION: ${{ vars.TF_STATE_REGION }}
       TF_VAR_endpoint_public_access_cidrs: ${{ vars.TF_VAR_ENDPOINT_PUBLIC_ACCESS_CIDRS }}
+      TF_VAR_cert_manager_acme_email: tsmane8787@gmail.com
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -93,6 +94,7 @@ jobs:
       AWS_ROLE_ARN: ${{ matrix.environment == 'dev' && vars.AWS_ROLE_ARN_DEV || vars.AWS_ROLE_ARN_PROD }}
       AWS_REGION: ${{ vars.TF_STATE_REGION }}
       TF_VAR_endpoint_public_access_cidrs: ${{ vars.TF_VAR_ENDPOINT_PUBLIC_ACCESS_CIDRS }}
+      TF_VAR_cert_manager_acme_email: tsmane8787@gmail.com
     steps:
       - name: Checkout
         uses: actions/checkout@v4
